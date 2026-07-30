@@ -223,13 +223,29 @@ struct fix32
         return frombits((uint32_t(x.bits()) >> y) | (x.bits() << (32 - y)));
     }
 
+    // Support for plain int and size_t when they are distinct types from the standard
+    // int*_t types. That happens on any toolchain whose int32_t is long rather than int --
+    // 3DS was the first one noticed, but riscv32-esp-elf behaves the same way. Without
+    // these, every fix32(someInt) is ambiguous between the int8_t, int16_t, int32_t and
+    // double constructors, and the platform that hits it cannot be told from the platform
+    // that does not by name alone.
+    //
+    // Written as constrained templates rather than #ifdef so the condition is the actual
+    // type identity, which is the thing that matters.
+    template<typename T,
+             typename std::enable_if<std::is_same<T, int>::value &&
+                                     !std::is_same<T, int32_t>::value>::type *...>
+    inline fix32(T x) : m_bits(int32_t(x << 16)) {}
+
+    template<typename T,
+             typename std::enable_if<std::is_same<T, size_t>::value &&
+                                     !std::is_same<T, uint32_t>::value &&
+                                     !std::is_same<T, uint64_t>::value &&
+                                     !std::is_same<T, unsigned long>::value>::type *...>
+    inline explicit fix32(T x) : m_bits(int32_t(x << 16)) {}
+
 #ifdef _3DS
-    inline explicit fix32(size_t x) : m_bits(int32_t(x << 16)) {}
-
-    inline fix32(int x)  : m_bits(int(x << 16)) {}
-
     inline explicit operator size_t() const { return m_bits >> 16; }
-    
 #endif
 
     static inline fix32 ldexp(fix32 x, int y)
