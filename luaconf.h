@@ -597,6 +597,24 @@
 
 #define luai_hashnum(i,n) (i = (n * z8::fix32::frombits(2654435769u)).bits())
 
+/*
+** Route every number->integer conversion through fix32's int32_t cast.
+**
+** Without these, llimits.h falls back to a plain cast of a fix32 to int or to lua_Unsigned.
+** Those types are not uint32_t on every toolchain -- where int32_t is long, as on
+** riscv32-esp-elf, lua_Unsigned is unsigned int and no explicit fix32 cast operator matches
+** it exactly, so the compiler reaches for operator double() instead. Converting a negative
+** double to an unsigned type is undefined, and it does not produce the modulo result Lua
+** checks for at startup: luaL_checkversion_ pushes -0x1234, reads it back, and aborts with
+** "bad conversion number->int; must recompile Lua with proper settings".
+**
+** int32_t has an exact cast operator, so naming it keeps the same arithmetic-shift semantics
+** the other platforms already get, everywhere.
+*/
+#define lua_number2int(i,n)		((i)=(int)(int32_t)(n))
+#define lua_number2integer(i,n)		((i)=(LUA_INTEGER)(int32_t)(n))
+#define lua_number2unsigned(i,n)	((i)=(lua_Unsigned)(int32_t)(n))
+
 static inline z8::fix32 operator/(z8::fix32 x, int y) { return x / z8::fix32(y); }
 static inline z8::fix32 operator+(int x, z8::fix32 y) { return z8::fix32(x) + y; }
 
